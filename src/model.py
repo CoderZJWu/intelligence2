@@ -189,11 +189,9 @@ def print_model_evaluation_report(model, X_test, y_test, df_test, feature_names,
     # Business interpretation of top features
     print("\nBUSINESS IMPLICATIONS OF KEY FEATURES")
     print("-"*50)
-    print("1. service_level_factor: Service tier has the strongest impact - VIP services have")
-    print("   significantly different pricing patterns that the model captures well.")
-    print("2. FY24_volume: Transaction volume drives volume discounts - model accurately")
+    print("1. FY24_volume: Transaction volume drives volume discounts - model accurately")
     print("   captures the non-linear discount curve.")
-    print("3. tier: Customer tier directly impacts pricing strategy - Gold tier customers")
+    print("2. tier: Customer tier directly impacts pricing strategy - Gold tier customers")
     print("   receive consistent discounts as expected.")
     
     # Model limitations
@@ -263,11 +261,9 @@ def print_model_evaluation_report(model, X_test, y_test, df_test, feature_names,
         
         f.write("\nBUSINESS IMPLICATIONS OF KEY FEATURES\n")
         f.write("-"*50 + "\n")
-        f.write("1. service_level_factor: Service tier has the strongest impact - VIP services have\n")
-        f.write("   significantly different pricing patterns that the model captures well.\n")
-        f.write("2. FY24_volume: Transaction volume drives volume discounts - model accurately\n")
+        f.write("1. FY24_volume: Transaction volume drives volume discounts - model accurately\n")
         f.write("   captures the non-linear discount curve.\n")
-        f.write("3. tier: Customer tier directly impacts pricing strategy - Gold tier customers\n")
+        f.write("2. tier: Customer tier directly impacts pricing strategy - Gold tier customers\n")
         f.write("   receive consistent discounts as expected.\n\n")
         
         f.write("MODEL LIMITATIONS & RECOMMENDATIONS\n")
@@ -286,7 +282,7 @@ def train_pricing_model(data_path='data/simulated_data.csv',
                         product_combinations_path='models/product_combinations.pkl'):
     """Train and save the pricing prediction model"""
     # Load and prepare data
-    from .feature_engineering import load_and_prepare_data, create_feature_sets
+    from feature_engineering import load_and_prepare_data, create_feature_sets
     df = load_and_prepare_data(data_path)
     X, y, label_encoders, cat_features = create_feature_sets(df)
     
@@ -327,7 +323,7 @@ def train_pricing_model(data_path='data/simulated_data.csv',
     train_data = lgb.Dataset(
         X_train, 
         label=y_train,
-        categorical_feature=cat_features,
+        categorical_feature='auto', # 让LightGBM自动检测类别特征
         free_raw_data=False
     )
     
@@ -385,7 +381,7 @@ def train_pricing_model(data_path='data/simulated_data.csv',
         'cat_features': cat_features,
         'most_frequent_classes': most_frequent_classes,
         'category_mappings': category_mappings,
-        'feature_names': X.columns.tolist(),
+        'feature_names': X.columns.tolist(), 
         'segment_mapping': segment_mapping,
         'model_evaluation': model_evaluation
     }, model_path)

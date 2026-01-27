@@ -32,7 +32,7 @@ def sanitize_filename(filename):
 def create_business_friendly_feature_names():
     """Map technical feature names to business-friendly names"""
     return {
-        'service_level_factor': 'Service Tier',
+        # 'service_level_factor': 'Service Tier',
         'FY24_volume': 'Transaction Volume',
         'tier': 'Customer Tier',
         'country': 'Country',
@@ -46,7 +46,7 @@ def create_business_friendly_feature_names():
         'avg_cp_at_seg': 'Segment Avg. Price',
         'avg_cp_at_tier': 'Tier Avg. Price',
         'avg_cp_at_wa_volume': 'Volume-weighted Avg. Price',
-        'is_premium_service': 'Premium Service Flag',
+        #'is_premium_service': 'Premium Service Flag',
         'country_segment': 'Country-Segment Combination'
     }
 
@@ -81,12 +81,6 @@ def print_shap_analysis_report(model_data, shap_values, X_sample, feature_names)
     print("\nBUSINESS INTERPRETATION OF KEY FEATURES")
     print("-"*50)
     
-    # Service level factor interpretation
-    if 'service_level_factor' in shap_importance['feature'].values:
-        print("1. Service Tier: This is the most influential factor in pricing decisions. The model")
-        print("   recognizes that different service tiers (STD, PRM, VIP, ELT) warrant significantly")
-        print("   different pricing, with premium services commanding higher prices. This aligns with")
-        print("   our tiered service offering strategy.\n")
     
     # Volume interpretation
     if 'FY24_volume' in shap_importance['feature'].values:
@@ -196,7 +190,7 @@ def print_shap_analysis_report(model_data, shap_values, X_sample, feature_names)
             shap_val = shap_vals[idx]
             
             # Format value appropriately
-            if feature in ['service_level_factor', 'FY24_volume']:
+            if feature in [ 'FY24_volume']:
                 value_str = f"{value:.2f}"
             elif feature in ['tier', 'country', 'product_level1', 'product_level2']:
                 value_str = str(value)
@@ -256,29 +250,24 @@ def print_shap_analysis_report(model_data, shap_values, X_sample, feature_names)
         f.write("\nBUSINESS INTERPRETATION OF KEY FEATURES\n")
         f.write("-"*50 + "\n")
         
-        if 'service_level_factor' in shap_importance['feature'].values:
-            f.write("1. Service Tier: This is the most influential factor in pricing decisions. The model\n")
-            f.write("   recognizes that different service tiers (STD, PRM, VIP, ELT) warrant significantly\n")
-            f.write("   different pricing, with premium services commanding higher prices. This aligns with\n")
-            f.write("   our tiered service offering strategy.\n\n")
         
         if 'FY24_volume' in shap_importance['feature'].values:
-            f.write("2. Transaction Volume: Higher transaction volumes lead to volume discounts, as\n")
+            f.write("1. Transaction Volume: Higher transaction volumes lead to volume discounts, as\n")
             f.write("   expected. The model has learned the non-linear discount curve where the\n")
             f.write("   discount percentage increases with volume but at a decreasing rate.\n\n")
         
         if 'tier' in shap_importance['feature'].values:
-            f.write("3. Customer Tier: Gold and Platinum tier customers receive consistent price\n")
+            f.write("2. Customer Tier: Gold and Platinum tier customers receive consistent price\n")
             f.write("   discounts compared to Silver tier customers. The model has learned our\n")
             f.write("   tier-based pricing strategy and applies it appropriately.\n\n")
         
         if 'country' in shap_importance['feature'].values:
-            f.write("4. Country: Geographic location affects pricing, with certain markets like Singapore\n")
+            f.write("3. Country: Geographic location affects pricing, with certain markets like Singapore\n")
             f.write("   having specific pricing adjustments. This reflects our regional pricing\n")
             f.write("   strategies for key markets.\n\n")
         
         if 'product_level1' in shap_importance['feature'].values:
-            f.write("5. Product Category: Different product categories have distinct pricing patterns,\n")
+            f.write("4. Product Category: Different product categories have distinct pricing patterns,\n")
             f.write("   with Clearing services typically priced higher than Payments or Liquidity\n")
             f.write("   services, reflecting their complexity and risk profile.\n\n")
         
@@ -320,7 +309,7 @@ def print_shap_analysis_report(model_data, shap_values, X_sample, feature_names)
                 value = X_sample.iloc[example_idx][feature]
                 shap_val = shap_vals[idx]
                 
-                if feature in ['service_level_factor', 'FY24_volume']:
+                if feature in [ 'FY24_volume']:
                     value_str = f"{value:.2f}"
                 elif feature in ['tier', 'country', 'product_level1', 'product_level2']:
                     value_str = str(value)
@@ -364,7 +353,7 @@ def analyze_model_shap(model_path='models/lgbm_model.pkl',
     feature_names = model_data['feature_names']
     
     # Load and prepare data
-    from .feature_engineering import load_and_prepare_data, create_feature_sets
+    from feature_engineering import load_and_prepare_data, create_feature_sets
     df = load_and_prepare_data(data_path)
     X, y, _, _ = create_feature_sets(df)
     
@@ -388,7 +377,7 @@ def analyze_model_shap(model_path='models/lgbm_model.pkl',
     
     # 2. Dependence plots for key features
     key_features = ['FY24_volume', 'segment_code', 'tier', 'country', 'product_level1', 
-                    'service_level_factor', 'country_segment']
+                     'country_segment']
     for feature in key_features:
         if feature in X.columns:
             plt.figure(figsize=(10, 6))
@@ -434,16 +423,7 @@ def analyze_model_shap(model_path='models/lgbm_model.pkl',
             plt.savefig(f'{output_dir}/summary_{safe_product_type}.png')
             plt.close()
             
-            # Analyze service level impact for this product type
-            if 'service_level_factor' in X.columns:
-                plt.figure(figsize=(10, 6))
-                shap.dependence_plot('service_level_factor', product_shap, product_sample, show=False)
-                plt.title(f'Service Level Impact - {product_type}')
-                plt.tight_layout()
-                
-                # 使用清理后的文件名
-                plt.savefig(f'{output_dir}/service_level_{safe_product_type}.png')
-                plt.close()
+            
     
     # 5. Tier analysis
     tier_values = df['tier'].unique()

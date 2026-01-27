@@ -3,13 +3,14 @@ FastAPI implementation for the pricing prediction service.
 Provides REST API for real-time pricing predictions.
 """
 
+import re  # 添加正则表达式模块导入
 from fastapi import FastAPI, HTTPException, Query
 import joblib
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
-from .pricing_rules import validate_price_structure, apply_tier_discount, get_tier_comparison
+# from .pricing_rules import validate_price_structure, apply_tier_discount, get_tier_comparison
 
 app = FastAPI(
     title="GPBS Pricing Simulator API",
@@ -71,14 +72,7 @@ async def explain_feature(feature: str = Query(..., description="Feature to expl
     # Create explanation based on feature type
     explanation = {}
     
-    if feature == 'service_level_factor':
-        explanation = {
-            "feature": "service_level_factor",
-            "description": "Service level premium factor (STD=1.0, PRM=1.2, VIP=1.45, ELT=1.75)",
-            "impact": "Higher service levels increase price proportionally",
-            "typical_impact": "+20% to +75% based on service level"
-        }
-    elif feature == 'tier':
+    if feature == 'tier':
         explanation = {
             "feature": "tier",
             "description": "Customer tier (Gold, Platinum, Portfolio, Silver)",
@@ -127,32 +121,56 @@ async def predict_pricing(request: PricingRequest):
         segment_name = segment_mapping.get(request.segment_code, "Unknown Segment")
         
         for _, row in product_combinations.iterrows():
+            # 提取产品代码特征
+            product_code = row['product_code']
+            product_code_length = len(product_code)
+            
+            # 提取版本号（数字部分）
+            version_match = re.search(r'(\d+)', product_code)
+            product_version = float(version_match.group(1)) if version_match else 1.0
+            
+            # 计算字母变化率
+            changes = 0
+            for i in range(1, len(product_code)):
+                if product_code[i] != product_code[i-1]:
+                    changes += 1
+            letter_change_rate = changes / len(product_code) if len(product_code) > 0 else 0
+            
+            # 检查字符类型
+            has_upper = 1 if any(c.isupper() for c in product_code) else 0
+            has_digits = 1 if any(c.isdigit() for c in product_code) else 0
+            has_special = 1 if any(not c.isalnum() for c in product_code) else 0
+            
+            # 计算产品代码哈希
+            product_code_hash = hash(product_code) % 1000 / 1000.0
+            
+            # 创建数据行
             data = {
                 'country': request.country,
                 'segment_code': request.segment_code,
                 'tier': request.tier,
                 'product_level1': row['product_level1'],
                 'product_level2': row['product_level2'],
-                'product_code': row['product_code'],
-                'service_level': row['service_level'],  # NEW
+                'product_code': product_code,
                 'charge_currency': request.currency,
-                'computation_method': 'Fixed flat',  # Default value
+                'computation_method': 'Fixed flat',
                 'FY24_volume': request.volume,
-                'volume_per_transaction': request.volume / 100,  # Simplified estimate
-                'revenue_growth': 0.05,  # Simplified estimate
-                'volume_growth': 0.03,    # Simplified estimate
-                'avg_cp_at_country': 0.5,  # Simplified value
-                'avg_cp_at_seg': 0.5,      # Simplified value
-                'avg_cp_at_tier': 0.5,     # Simplified value
-                'avg_cp_at_wa_volume': 0.5, # Simplified value
-                'service_level_factor': {
-                    'STD': 1.0,
-                    'PRM': 1.2,
-                    'VIP': 1.45,
-                    'ELT': 1.75
-                }.get(row['service_level'], 1.0),  # NEW
-                'is_premium_service': 1 if row['service_level'] != 'STD' else 0,  # NEW
-                'country_segment': f"{request.country}_{segment_name.replace(' ', '_')}"  # FIXED
+                'volume_per_transaction': request.volume / 100,
+                'revenue_growth': 0.05,
+                'volume_growth': 0.03,
+                'avg_cp_at_country': 0.5,
+                'avg_cp_at_seg': 0.5,
+                'avg_cp_at_tier': 0.5,
+                'avg_cp_at_wa_volume': 0.5,
+                'country_segment': f"{request.country}_{segment_name.replace(' ', '_')}",
+                # 新增的自动提取特征
+                'product_code_length': product_code_length,
+                'product_version': product_version,
+                'letter_change_rate': letter_change_rate,
+                'has_upper': has_upper,
+                'has_digits': has_digits,
+                'has_special': has_special,
+                'product_code_hash': product_code_hash
             }
             prediction_data.append(data)
         
@@ -211,26 +229,23 @@ async def predict_pricing(request: PricingRequest):
                     p2: {p_code: f"{pred:.4f}"}
                 })
         
-        # Apply business rules validation
-        validated_results = validate_price_structure(results)
-        
         # Apply tier-based pricing
-        final_results = apply_tier_discount(validated_results, request.tier)
+        # final_results = apply_tier_discount(results, request.tier)
         
         # Prepare metadata
         metadata = {
             "request": request.dict(),
             "model_version": "1.1",
             "timestamp": pd.Timestamp.now().isoformat(),
-            "product_count": sum(len(items) for items in final_results.values())
+            "product_count": sum(len(items) for items in results.values())
         }
         
         # Add tier comparisons if requested
-        if request.include_comparisons:
-            metadata["tier_comparisons"] = get_tier_comparison(final_results, request.tier)
+        # if request.include_comparisons:
+            # metadata["tier_comparisons"] = get_tier_comparison(results, request.tier)
         
         return PricingResponse(
-            pricing=final_results,
+            pricing=results,
             metadata=metadata
         )
         

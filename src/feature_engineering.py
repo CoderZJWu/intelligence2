@@ -6,7 +6,41 @@ and creating relevant pricing features.
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import LabelEncoder
+import re
+
+def extract_product_code_patterns(df):
+    """
+    自动从product_code中提取模式特征，无需业务知识
+    """
+    # 1. 提取产品代码长度特征（可能反映复杂度）
+    df['product_code_length'] = df['product_code'].str.len()
+    
+    # 2. 提取数字部分作为版本特征
+    df['product_version'] = df['product_code'].str.extract('([0-9]+)', expand=False).astype(float)
+    
+    # 3. 提取字母模式特征（自动识别重复模式）
+    df['product_pattern'] = df['product_code'].str.replace(r'[0-9]', '', regex=True)
+    
+    # 4. 计算字母变化率（可能反映服务级别）
+    def calculate_letter_change_rate(code):
+        changes = 0
+        for i in range(1, len(code)):
+            if code[i] != code[i-1]:
+                changes += 1
+        return changes / len(code) if len(code) > 0 else 0
+    
+    df['letter_change_rate'] = df['product_code'].apply(calculate_letter_change_rate)
+    
+    # 5. 提取产品代码的字符分布特征
+    df['has_upper'] = df['product_code'].str.isupper().astype(int)
+    df['has_digits'] = df['product_code'].str.contains(r'[0-9]').astype(int)
+    df['has_special'] = df['product_code'].str.contains(r'[^A-Za-z0-9]').astype(int)
+    
+    # 6. 创建产品代码的嵌入特征（使用简单哈希）
+    df['product_code_hash'] = df['product_code'].apply(lambda x: hash(x) % 1000) / 1000.0
+    
+    return df
 
 def load_and_prepare_data(file_path='data/simulated_data.csv'):
     """Load data and prepare features for model training"""
@@ -19,21 +53,13 @@ def load_and_prepare_data(file_path='data/simulated_data.csv'):
     df['revenue_growth'] = (df['FY24_fee_in_usd'] - df['FY23_fee_in_usd']) / df['FY23_fee_in_usd']
     df['volume_growth'] = (df['FY24_volume'] - df['FY23_volume']) / df['FY23_volume']
     
-    # Create service level features (NEW)
-    df['is_premium_service'] = df['service_level'].apply(lambda x: 1 if x in ['PRM', 'VIP', 'ELT'] else 0)
-    df['service_level_factor'] = df['service_level'].map({
-        'STD': 1.0,
-        'PRM': 1.2,
-        'VIP': 1.45,
-        'ELT': 1.75
-    })
-    
-    # Create country-segment interaction feature (NEW)
     df['country_segment'] = df['country'] + '_' + df['segment_name'].str.replace(' ', '_')
-    
     # Handle infinite values
     df.replace([np.inf, -np.inf], 0, inplace=True)
     df.fillna(0, inplace=True)
+    
+    # Extract patterns from product code
+    df = extract_product_code_patterns(df)
     
     return df
 
@@ -42,13 +68,15 @@ def create_feature_sets(df):
     # Target variable
     y = df['ecp_usd']
     
-    # Features to use
+    # Features to use (removed service_level_factor and is_premium_service)
     features = [
         'country', 'segment_code', 'tier', 'product_level1', 'product_level2', 
         'charge_currency', 'computation_method', 'FY24_volume', 'volume_per_transaction',
         'revenue_growth', 'volume_growth', 'avg_cp_at_country', 'avg_cp_at_seg',
-        'avg_cp_at_tier', 'avg_cp_at_wa_volume', 'service_level_factor',  # NEW
-        'is_premium_service', 'country_segment'  # NEW
+        'avg_cp_at_tier', 'avg_cp_at_wa_volume', 'country_segment',
+        # 新增的自动提取特征
+        'product_code_length', 'product_version', 'letter_change_rate',
+        'has_upper', 'has_digits', 'has_special', 'product_code_hash'
     ]
     
     X = df[features].copy()
@@ -56,7 +84,7 @@ def create_feature_sets(df):
     # Encode categorical features
     cat_features = ['country', 'segment_code', 'tier', 'product_level1', 
                     'product_level2', 'charge_currency', 'computation_method',
-                    'country_segment']  # NEW
+                    'country_segment', 'product_pattern']  # 新增product_pattern
     
     # Convert segment_code to categorical (even though it's numeric)
     X['segment_code'] = X['segment_code'].astype('category')
@@ -64,9 +92,10 @@ def create_feature_sets(df):
     # Label encode categorical features
     label_encoders = {}
     for feature in cat_features:
-        le = LabelEncoder()
-        X[feature] = le.fit_transform(X[feature])
-        label_encoders[feature] = le
+        if feature in X.columns:
+            le = LabelEncoder()
+            X[feature] = le.fit_transform(X[feature])
+            label_encoders[feature] = le
     
     return X, y, label_encoders, cat_features
 

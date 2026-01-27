@@ -27,11 +27,11 @@ def generate_simulated_data(n_samples=10000):
     product_level1 = ['Payments', 'Clearing', 'Collections', 'Liquidity']
     product_level2 = {
         'Payments': ['ACH', 'BT', 'CASH', 'CO', 'OTT', 'Pay'],
-        'Clearing': ['Clearing', 'CASH'],
-        'Collections': ['CASH', 'CO'],
-        'Liquidity': ['CASH']
+        'Clearing': ['Clearing'],
+        'Collections': ['CASH', 'DDA','ITT'],
+        'Liquidity': ['Setup & Maintenance']
     }
-    charge_currencies = ['SGD', 'USD', 'EUR', 'JPY']
+    charge_currencies = ['SGD', 'USD']
     computation_methods = ['Fixed flat', 'flat absolute']
     
     # Generate product codes with meaningful variations
@@ -130,14 +130,6 @@ def generate_simulated_data(n_samples=10000):
         elif p1_list[i] == 'Liquidity':
             base_price *= 0.8
             
-        # Service level adjustment (NEW)
-        service_level_factor = {
-            'STD': 1.0,
-            'PRM': 1.2,
-            'VIP': 1.45,
-            'ELT': 1.75
-        }.get(service_levels[i], 1.0)
-        base_price *= service_level_factor
         
         # Volume discount
         volume_factor = 1 / (1 + np.log10(fy24_volumes[i] / 1000))
