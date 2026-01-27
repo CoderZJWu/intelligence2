@@ -43,3 +43,8 @@ curl -X POST "http://localhost:8000/predict" \
 
 # View API Documentation
 Visit http://localhost:8000/docs in your browser for interactive API documentation.
+
+# Simple Demo
+pip install streamlit lightgbm pandas numpy matplotlib seaborn
+
+streamlit run simple_demo.py
