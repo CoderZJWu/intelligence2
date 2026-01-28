@@ -47,4 +47,6 @@ Visit http://localhost:8000/docs in your browser for interactive API documentati
 # Simple Demo
 pip install streamlit lightgbm pandas numpy matplotlib seaborn
 
-streamlit run simple_demo.py
+streamlit run src/simple_demo.py
+
+streamlit run src/pricing_dashboard.py
